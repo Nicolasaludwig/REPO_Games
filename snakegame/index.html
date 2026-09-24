@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #111;
+            color: #fff;
+            font-family: Arial, Helvetica, sans-serif;
+            text-align: center;
+            /* Centraliza o conteúdo vertical e horizontalmente */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        
+        h1 {
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+
+        p {
+            margin: 0 0 16px 0;
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        canvas {
+            background-color: #222;
+            border: 3px solid cyan;
+            /* Garante que o canvas não redimensione de forma estranha com CSS, 
+               vamos manter o tamanho fixo definido nos atributos HTML */
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <h1>Snake Game</h1>
+    <p>Use as setas do teclado para jogar. Aperte "Enter" para reiniciar.</p>
+    <canvas id="game" width="480" height="320"></canvas>
+
+    <script>
+        const canvas = document.getElementById("game");
+        const ctx = canvas.getContext("2d");
+
+        const grid = 16; // Tamanho de cada quadrado na grade
+        let count = 0;
+
+        // Variáveis de estado do jogo
+        let snake = [];
+        let apple = {};
+        let dx = grid; // Velocidade horizontal atual
+        let dy = 0;    // Velocidade vertical atual
+        
+        // nextDx e nextDy servem para evitar que o jogador aperte duas teclas
+        // muito rápido e faça a cobra voltar por dentro dela mesma antes do próximo tick
+        let nextDx = grid; 
+        let nextDy = 0;    
+
+        let score = 0;
+        let gameOver = false;
+
+        // Variáveis de controle de tempo (Game Loop)
+        let last = 0;
+        let timer = 0;
+        const moveInterval = 0.1; // A cobra se move a cada 0.1 segundos (100ms)
+
+        function spawnApple() {
+            // Posiciona a maçã aleatoriamente respeitando a grade
+            apple.x = Math.floor(Math.random() * (canvas.width / grid)) * grid;
+            apple.y = Math.floor(Math.random() * (canvas.height / grid)) * grid;
+        }
+
+        function resetGame() {
+            snake = [
+                {x: 160, y: 160},
+                {x: 144, y: 160},
+                {x: 128, y: 160}
+            ];
+            dx = grid;
+            dy = 0;
+            nextDx = grid;
+            nextDy = 0;
+            score = 0;
+            gameOver = false;
+            timer = 0;
+            spawnApple();
+        }
+
+        // Configuração inicial ao abrir a página
+        resetGame();
+
+        document.addEventListener("keydown", function(e) {
+            // Reiniciar jogo se estiver no Game Over
+            if (gameOver && e.key === "Enter") {
+                resetGame();
+                return;
+            }
+
+            // Impede a movimentação para a direção oposta instantaneamente
+            if (e.key === "ArrowLeft" && dx !== grid) {
+                nextDx = -grid;
+                nextDy = 0;
+            } else if (e.key === "ArrowUp" && dy !== grid) {
+                nextDx = 0;
+                nextDy = -grid;
+            } else if (e.key === "ArrowRight" && dx !== -grid) {
+                nextDx = grid;
+                nextDy = 0;
+            } else if (e.key === "ArrowDown" && dy !== -grid) {
+                nextDx = 0;
+                nextDy = grid;
+            }
+        });
+
+        function update(dt) {
+            if (gameOver) return;
+
+            // Acumula o tempo que passou
+            timer += dt;
+
+            // Se o tempo acumulado for maior que o intervalo de movimento (0.1s)...
+            if (timer >= moveInterval) {
+                // Subtrai o intervalo em vez de zerar, mantendo a precisão caso haja variação no dt
+                timer -= moveInterval; 
+
+                // Atualiza a direção real baseada no input filtrado
+                dx = nextDx;
+                dy = nextDy;
+
+                // Calcula a nova posição da cabeça da cobra
+                const head = { 
+                    x: snake[0].x + dx, 
+                    y: snake[0].y + dy 
+                };
+
+                // Checa colisão com as paredes
+                if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) {
+                    gameOver = true;
+                    return;
+                }
+
+                // Checa colisão consigo mesma
+                for (let i = 0; i < snake.length; i++) {
+                    if (head.x === snake[i].x && head.y === snake[i].y) {
+                        gameOver = true;
+                        return;
+                    }
+                }
+
+                // Insere a nova cabeça na primeira posição do array
+                snake.unshift(head);
+
+                // Checa se a cobra comeu a maçã
+                if (head.x === apple.x && head.y === apple.y) {
+                    score++; // Aumenta a pontuação
+                    spawnApple(); // Gera uma nova maçã
+                    // Como não executamos snake.pop(), a cobra cresce 1 bloco!
+                } else {
+                    // Remove o último segmento da cauda se não comeu a maçã
+                    snake.pop(); 
+                }
+            }
+        }
+
+        function draw() {
+            // Limpa a tela inteira com o fundo transparente 
+            // (mostrando a cor definida no CSS)
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Desenhar a maçã (vermelha)
+            ctx.fillStyle = "#ff3030";
+            ctx.fillRect(apple.x, apple.y, grid - 1, grid - 1); 
+            // O "-1" ajuda a criar um leve espaçamento/borda invisível na grade
+
+            // Desenhar a cobra (verde neon)
+            ctx.fillStyle = "#30e742ff";
+            for (let i = 0; i < snake.length; i++) {
+                ctx.fillRect(snake[i].x, snake[i].y, grid - 1, grid - 1);
+            }
+
+            // Desenhar Score
+            ctx.fillStyle = "#fff";
+            ctx.font = "16px Arial";
+            ctx.textAlign = "left";
+            ctx.fillText("Score: " + score, 10, 20);
+
+            // Desenhar Tela de Game Over
+            if (gameOver) {
+                // Fundo semi-transparente
+                ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Texto de Game Over
+                ctx.fillStyle = "#fff";
+                ctx.font = "30px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 10);
+                
+                ctx.font = "16px Arial";
+                ctx.fillText("Score Final: " + score, canvas.width / 2, canvas.height / 2 + 20);
+                ctx.fillText("Pressione Enter para reiniciar", canvas.width / 2, canvas.height / 2 + 50);
+            }
+        }
+
+        function loop(ts) {
+            // Evita dt gigante no primeiro frame
+            if (!last) last = ts; 
+
+            // Calcula o Delta Time em segundos (limitando a max 0.05s para evitar bugs caso a aba congele)
+            let dt = Math.min(0.05, (ts - last) / 1000); 
+            last = ts;
+
+            update(dt);
+            draw();
+
+            requestAnimationFrame(loop);
+        }
+
+        // Inicia o jogo a primeira vez
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
