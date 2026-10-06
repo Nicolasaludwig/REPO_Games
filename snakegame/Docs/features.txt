@@ -1,0 +1,13 @@
+Playtest de Corredor - 06/10/2026
+
+Feedback do Jogador 1 (Dev Front-end):
+"A estética neon ficou massa, mas a comida dourada é injusta, ela pisca e some rápido demais antes de eu conseguir virar o mapa."
+
+Feedback do Jogador 2 (Designer):
+"Morri sem entender direito o alcance da hitbox perto da parede de baixo."
+
+Feedback do Jogador 1 (Tentando o Recorde):
+"Queria poder atravessar a parede igual o Snake de Nokia clássico, bati jurando que ia sair do outro lado."
+
+ITERACÃO REALIZADA APÓS O TESTE:
+Ajustei o timer da Comida Especial Dourada. Baseado no comentário de ser "injusta", o tempo de vida do bloco especial aumentou de 4.0 segundos para 6.0 segundos (`specialFood.timer = 6.0`). Isso permitiu ao jogador cruzar pelo menos metade do mapa a tempo de arriscar a pontuação extra (30 pts) sem sentir que o jogo o enganou.

@@ -1,180 +1,187 @@
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-        const canvas = document.getElementById("game");
-        const ctx = canvas.getContext("2d");
+const gridSize = 20;
+const tileCount = canvas.width / gridSize;
 
-        const grid = 16; // Tamanho de cada quadrado na grade
-        let count = 0;
+let snake = [{ x: 10, y: 10 }];
+let dx = 0, dy = 0;
+let nextDx = 0, nextDy = 0; // Buffer para bloquear 180° no mesmo frame
 
-        // Variáveis de estado do jogo
-        let snake = [];
-        let apple = {};
-        let dx = grid; // Velocidade horizontal atual
-        let dy = 0;    // Velocidade vertical atual
+let food = { x: 5, y: 5 };
+let specialFood = { x: -1, y: -1, active: false, timer: 0 };
+
+let score = 0;
+let topScore = localStorage.getItem("byteSnakeScore") || 0;
+let topInitials = localStorage.getItem("byteSnakeInitials") || "---";
+
+let lastTime = 0;
+let moveTimer = 0;
+const speed = 0.12; // Velocidade (Iteração do playtest)
+
+document.getElementById("high-score").innerText = topScore;
+document.getElementById("high-score-initials").innerText = topInitials;
+
+function update(dt) {
+    moveTimer += dt;
+    
+    // Decrementa o timer da comida especial
+    if (specialFood.active) {
+        specialFood.timer -= dt;
+        if (specialFood.timer <= 0) specialFood.active = false;
+    }
+
+    if (moveTimer >= speed) {
+        moveTimer = 0;
         
-        // nextDx e nextDy servem para evitar que o jogador aperte duas teclas
-        // muito rápido e faça a cobra voltar por dentro dela mesma antes do próximo tick
-        let nextDx = grid; 
-        let nextDy = 0;    
+        // Aplica o input do buffer
+        dx = nextDx;
+        dy = nextDy;
 
-        let score = 0;
-        let gameOver = false;
+        if (dx === 0 && dy === 0) return; // Jogo pausado no início
 
-        // Variáveis de controle de tempo (Game Loop)
-        let last = 0;
-        let timer = 0;
-        const moveInterval = 0.1; // A cobra se move a cada 0.1 segundos (100ms)
+        const head = { x: snake[0].x + dx, y: snake[0].y + dy };
 
-        function spawnApple() {
-            // Posiciona a maçã aleatoriamente respeitando a grade
-            apple.x = Math.floor(Math.random() * (canvas.width / grid)) * grid;
-            apple.y = Math.floor(Math.random() * (canvas.height / grid)) * grid;
+        // Game Over: Parede
+        if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+            return gameOver();
         }
 
-        function resetGame() {
-            snake = [
-                {x: 160, y: 160},
-                {x: 144, y: 160},
-                {x: 128, y: 160}
-            ];
-            dx = grid;
-            dy = 0;
-            nextDx = grid;
-            nextDy = 0;
-            score = 0;
-            gameOver = false;
-            timer = 0;
-            spawnApple();
-        }
-
-        // Configuração inicial ao abrir a página
-        resetGame();
-
-        document.addEventListener("keydown", function(e) {
-            // Reiniciar jogo se estiver no Game Over
-            if (gameOver && e.key === "Enter") {
-                resetGame();
-                return;
-            }
-
-            // Impede a movimentação para a direção oposta instantaneamente
-            if (e.key === "ArrowLeft" && dx !== grid) {
-                nextDx = -grid;
-                nextDy = 0;
-            } else if (e.key === "ArrowUp" && dy !== grid) {
-                nextDx = 0;
-                nextDy = -grid;
-            } else if (e.key === "ArrowRight" && dx !== -grid) {
-                nextDx = grid;
-                nextDy = 0;
-            } else if (e.key === "ArrowDown" && dy !== -grid) {
-                nextDx = 0;
-                nextDy = grid;
-            }
-        });
-
-        function update(dt) {
-            if (gameOver) return;
-
-            // Acumula o tempo que passou
-            timer += dt;
-
-            // Se o tempo acumulado for maior que o intervalo de movimento (0.1s)...
-            if (timer >= moveInterval) {
-                // Subtrai o intervalo em vez de zerar, mantendo a precisão caso haja variação no dt
-                timer -= moveInterval; 
-
-                // Atualiza a direção real baseada no input filtrado
-                dx = nextDx;
-                dy = nextDy;
-
-                // Calcula a nova posição da cabeça da cobra
-                const head = { 
-                    x: snake[0].x + dx, 
-                    y: snake[0].y + dy 
-                };
-
-                // Checa colisão com as paredes
-                if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) {
-                    gameOver = true;
-                    return;
-                }
-
-                // Checa colisão consigo mesma
-                for (let i = 0; i < snake.length; i++) {
-                    if (head.x === snake[i].x && head.y === snake[i].y) {
-                        gameOver = true;
-                        return;
-                    }
-                }
-
-                // Insere a nova cabeça na primeira posição do array
-                snake.unshift(head);
-
-                // Checa se a cobra comeu a maçã
-                if (head.x === apple.x && head.y === apple.y) {
-                    score++; // Aumenta a pontuação
-                    spawnApple(); // Gera uma nova maçã
-                    // Como não executamos snake.pop(), a cobra cresce 1 bloco!
-                } else {
-                    // Remove o último segmento da cauda se não comeu a maçã
-                    snake.pop(); 
-                }
+        // Game Over: Próprio corpo
+        for (let i = 0; i < snake.length; i++) {
+            if (head.x === snake[i].x && head.y === snake[i].y) {
+                return gameOver();
             }
         }
 
-        function draw() {
-            // Limpa a tela inteira com o fundo transparente 
-            // (mostrando a cor definida no CSS)
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        snake.unshift(head);
 
-            // Desenhar a maçã (vermelha)
-            ctx.fillStyle = "#ff3030";
-            ctx.fillRect(apple.x, apple.y, grid - 1, grid - 1); 
-            // O "-1" ajuda a criar um leve espaçamento/borda invisível na grade
-
-            // Desenhar a cobra (verde neon)
-            ctx.fillStyle = "#30e742ff";
-            for (let i = 0; i < snake.length; i++) {
-                ctx.fillRect(snake[i].x, snake[i].y, grid - 1, grid - 1);
+        // Comeu comida normal
+        if (head.x === food.x && head.y === food.y) {
+            score += 10;
+            document.getElementById("score").innerText = score;
+            spawnFood();
+            
+            // 20% de chance de spawnar comida especial
+            if (!specialFood.active && Math.random() < 0.2) {
+                spawnSpecialFood();
             }
-
-            // Desenhar Score
-            ctx.fillStyle = "#fff";
-            ctx.font = "16px Arial";
-            ctx.textAlign = "left";
-            ctx.fillText("Score: " + score, 10, 20);
-
-            // Desenhar Tela de Game Over
-            if (gameOver) {
-                // Fundo semi-transparente
-                ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                // Texto de Game Over
-                ctx.fillStyle = "#fff";
-                ctx.font = "30px Arial";
-                ctx.textAlign = "center";
-                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 10);
-                
-                ctx.font = "16px Arial";
-                ctx.fillText("Score Final: " + score, canvas.width / 2, canvas.height / 2 + 20);
-                ctx.fillText("Pressione Enter para reiniciar", canvas.width / 2, canvas.height / 2 + 50);
-            }
+        } 
+        // Comeu comida especial
+        else if (specialFood.active && head.x === specialFood.x && head.y === specialFood.y) {
+            score += 30;
+            document.getElementById("score").innerText = score;
+            specialFood.active = false;
+        } 
+        else {
+            snake.pop(); // Remove a cauda se não comeu
         }
+    }
+}
 
-        function loop(ts) {
-            // Evita dt gigante no primeiro frame
-            if (!last) last = ts; 
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Calcula o Delta Time em segundos (limitando a max 0.05s para evitar bugs caso a aba congele)
-            let dt = Math.min(0.05, (ts - last) / 1000); 
-            last = ts;
+    // Grid (Estética)
+    ctx.strokeStyle = "rgba(0, 255, 255, 0.05)";
+    for(let i=0; i<tileCount; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * gridSize, 0); ctx.lineTo(i * gridSize, canvas.height);
+        ctx.moveTo(0, i * gridSize); ctx.lineTo(canvas.width, i * gridSize);
+        ctx.stroke();
+    }
 
-            update(dt);
-            draw();
+    // Comida Normal (Rosa)
+    ctx.fillStyle = "#ff0055";
+    ctx.fillRect(food.x * gridSize + 2, food.y * gridSize + 2, gridSize - 4, gridSize - 4);
 
-            requestAnimationFrame(loop);
+    // Comida Especial (Dourada)
+    if (specialFood.active) {
+        // Pisca quando está acabando
+        if (specialFood.timer > 1.5 || Math.floor(specialFood.timer * 10) % 2 === 0) {
+            ctx.fillStyle = "#ffcc00";
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = "#ffcc00";
+            ctx.fillRect(specialFood.x * gridSize + 2, specialFood.y * gridSize + 2, gridSize - 4, gridSize - 4);
+            ctx.shadowBlur = 0;
         }
+    }
 
-        // Inicia o jogo a primeira vez
-        requestAnimationFrame(loop);
+    // Snake (Cyan)
+    ctx.fillStyle = "#00ffff";
+    for (let i = 0; i < snake.length; i++) {
+        // Cabeça mais clara
+        if (i === 0) ctx.fillStyle = "#e6ffff"; 
+        else ctx.fillStyle = "#00ffff";
+        
+        ctx.fillRect(snake[i].x * gridSize + 1, snake[i].y * gridSize + 1, gridSize - 2, gridSize - 2);
+    }
+}
+
+function spawnFood() {
+    let valid = false;
+    while (!valid) {
+        food.x = Math.floor(Math.random() * tileCount);
+        food.y = Math.floor(Math.random() * tileCount);
+        valid = !isOnSnake(food.x, food.y);
+    }
+}
+
+function spawnSpecialFood() {
+    let valid = false;
+    while (!valid) {
+        specialFood.x = Math.floor(Math.random() * tileCount);
+        specialFood.y = Math.floor(Math.random() * tileCount);
+        // Não pode nascer na cobra E nem em cima da comida normal
+        valid = !isOnSnake(specialFood.x, specialFood.y) && (specialFood.x !== food.x || specialFood.y !== food.y);
+    }
+    specialFood.active = true;
+    specialFood.timer = 6.0; // 6 segundos antes de sumir
+}
+
+function isOnSnake(x, y) {
+    return snake.some(segment => segment.x === x && segment.y === y);
+}
+
+function gameOver() {
+    if (score > topScore) {
+        let initials = prompt("NOVO RECORDE! Digite suas iniciais (3 letras):", "AAA");
+        if (initials) {
+            initials = initials.substring(0, 3).toUpperCase();
+            localStorage.setItem("byteSnakeScore", score);
+            localStorage.setItem("byteSnakeInitials", initials);
+        }
+    }
+    // Reset
+    snake = [{ x: 10, y: 10 }];
+    dx = 0; dy = 0; nextDx = 0; nextDy = 0;
+    score = 0;
+    specialFood.active = false;
+    document.getElementById("score").innerText = score;
+    topScore = localStorage.getItem("byteSnakeScore") || 0;
+    topInitials = localStorage.getItem("byteSnakeInitials") || "---";
+    document.getElementById("high-score").innerText = topScore;
+    document.getElementById("high-score-initials").innerText = topInitials;
+    spawnFood();
+}
+
+// Input Queue: O nextDx/nextDy evita o bug de apertar Cima+Esquerda muito rápido no mesmo frame
+window.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp" && dy === 0) { nextDx = 0; nextDy = -1; }
+    if (e.key === "ArrowDown" && dy === 0) { nextDx = 0; nextDy = 1; }
+    if (e.key === "ArrowLeft" && dx === 0) { nextDx = -1; nextDy = 0; }
+    if (e.key === "ArrowRight" && dx === 0) { nextDx = 1; nextDy = 0; }
+});
+
+function loop(ts) {
+    if (!lastTime) lastTime = ts;
+    let dt = Math.min(0.05, (ts - lastTime) / 1000);
+    lastTime = ts;
+
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+}
+
+spawnFood();
+requestAnimationFrame(loop);
